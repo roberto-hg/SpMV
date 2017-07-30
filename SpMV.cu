@@ -35,43 +35,16 @@ void ErrorHandlMacro_Example()
 }
 
 
+void Array2D(int *row, int *col, double *value, int size) {
+	double *mat2D;
+	mat2D = (double *) malloc(size * sizeof(double));
 
-double * vectormult(double *vector, int *col, int size) {
-	//Array that has the vector values corresponding to the matrix elements.
-
-	double *p_vector2 = (double *) malloc(size * sizeof(double));
-
-	for (int i = 0; i < size; i++) {
-		p_vector2[i] = vector[col[i]];
+	for (int i = 0; i < matsize; i++) {
+		mat2D[row[i]][col[i]] = value[i];
 	}
 
-	free(vector);
-	free(col);
-
-	return p_vector2;
+	return 0;
 }
-
-int indexer(int *row, int *index, int size) {
-	//Creates index array that returns the index of each row (uses defined index array).
-	//Also returns the index size.
-
-	int prev = 0, j = 0, k = 0;
-
-	for (int i = 1; i < size; i++) {
-			if (row[prev] != row[i]) {
-					index[j++] = prev;
-			k++;
-			prev = i;
-		}
-	}
-
-	index[j] = prev;
-	index[j + 1] = size;
-	k += 2;
-
-	return k;
-}
-
 
 
 double *main(int argc, char *argv[]) {
@@ -92,16 +65,16 @@ double *main(int argc, char *argv[]) {
 	double mdoublesize = matsize * sizeof(double);
 
 	//Creates row, col, and value arrays.
-	int *p_row = (int *) malloc(mintsize);				
-	int *p_col = (int *) malloc(mintsize);              
-	double *p_mvalue = (double *) malloc(mdoublesize);
+	int *h_row = (int *) malloc(mintsize);				
+	int *h_col = (int *) malloc(mintsize);              
+	double *h_mvalue = (double *) malloc(mdoublesize);
 
 	//Allocates the .txt file data to the created arrays.
 	for (int i = 0; i < matsize; i++)
 	{
-		fscanf(pToMFile, "%d", &p_row[i]);
-		fscanf(pToMFile, "%d", &p_col[i]);
-		fscanf(pToMFile, "%lf", &p_mvalue[i]);
+		fscanf(pToMFile, "%d", &h_row[i]);
+		fscanf(pToMFile, "%d", &h_col[i]);
+		fscanf(pToMFile, "%lf", &h_mvalue[i]);
 	}
 
 	fclose(pToMFile);
@@ -112,31 +85,41 @@ double *main(int argc, char *argv[]) {
 	fscanf(pToVFile, "%d", &veclen); //Sets the vector size.
 
 	//Creates vector value array.
-	double *p_vec = (double *) malloc(veclen * sizeof(double));
+	double *h_vec = (double *) malloc(veclen * sizeof(double));
 
 	//Allocates the .txt file data to the created array.
 	for (int i = 0; i < veclen; i++) {
-		fscanf(pToVFile, "%lf", &p_vec[i]);
+		fscanf(pToVFile, "%lf", &h_vec[i]);
 	}
 
 	fclose(pToVFile);
 	//******************************************//
 		
 
-
-
-
-
+	Array2D(h_row, h_col, h_mvalue, matsize);
 
 
 	//************ 2) Allocate memory on GPU *************//			
 	// allocate memory on GPU side 
 	// move the data from the CPU to GPU
 
+	double *d_mat;
+	double *d_vec;
+	double *d_output;
+	int rowsize = h_row[matsize - 1];
+	int finalsize = rowsize * sizeof(double);
+
+	cudaMalloc((void **)&d_mat, mdoublesize);
+	cudaMalloc((void **)&d_vec, mdoublesize); 
+	cudaMalloc((void **)&d_output, finalsize);
+
+	cudaMemcpy(d_mat, mat2D, mdoublesize, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_vec, h_vec, veclen * sizeof(double), cudaMemcpyHostToDevice);
 
 
 	//****************************************************//
 	
+
 
 
 
@@ -149,55 +132,30 @@ double *main(int argc, char *argv[]) {
 	//the kernel should take one 2D array (input matrix), one 1D array (input vector)
 	//and output one 1D array (output vector)
 	
+	
 
-	//Creates the memory for multiplication.
-	double *p_mult = (double *) malloc(mdoublesize);
+	__global__ void Spmvker(double *d_mat, double *d_vec, int rowsize) {
 
-	//Calls vectormult for multiplication.
-	double * vecmu = vectormult(p_vec, p_col, matsize);
+		int id = threadIdx.x;
 
-	//Multiplies the matrix elements with the corresponding vector values.
-	for (int i = 0; i < matsize; i++) {
-		p_mult[i] = p_mvalue[i] * vecmu[i];
+		if (id < rowsize) {
+
+			for (int i = 0; i < ; i++) {
+
+				d_mat[id][i] = d_mat[id][i] * d_vec[id][i];
+			}
+			
+			double accu = 0;
+			for (int i = 0; i < ; i++) {
+				accu += d_mat[id][i];
+			}
+
+			d_output[id] = accu;
+		}
+			
 	}
 		
-	free(p_mvalue);
-	free(vecmu);
 
-	//Calls indexer to create an index array to use on the segmented scanned array.
-	int * index = (int *) malloc(mintsize + sizeof(int));  
-	int indexsize = indexer(p_row, index, matsize);
-
-	/* Unused Code			
-	double *d_mult; 
-	int *d_segrow;
-
-	cudaMalloc((void **) &d_mult, mdoublesize);
-	cudaMalloc((void **) &d_segrow, mintsize);
-
-	cudaMemcpy(d_mult, p_mult, mdoublesize, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_segrow, keys, mintsize, cudaMemcpyHostToDevice);
-
-	//thrust::equal_to<double> binary_pred;
-	//thrust::maximum<double> binary_op;
-	*/
-
-	//GPU segmented scan using the row array and the multiplied array.
-	thrust::inclusive_scan_by_key(p_row, p_row + matsize, p_mult, p_mult);
-
-	free(p_row);
-
-	//Allocates the memory for the resultant vector from the SpMV.
-	double *result = (double *) malloc(mdoublesize);
-
-	printf("\n\nResult of SpMV:\n\n");
-
-	//Fetches the coressponding sums from the segmented scan array and
-	//creates the resultant vector from the SpMV. Also prints each element.
-	for (int i = 1; i < indexsize; i++) {
-		result[i] = p_mult[index[i] - 1];
-		printf("Element[%d] = %lf\n\n", i-1, result[i]);
-	}
 	//**************************************************************************//
 
 
@@ -210,6 +168,12 @@ double *main(int argc, char *argv[]) {
 	//to the CPU to further processing
 	//to do this, we need to allocate memory on the CPU side 
 	//then move the data to CPU
+
+	double *h_output = (double *) malloc(finalsize);
+
+	cudaMemcpy(d_output, h_output, finalsize, cudaMemcpyDevicetoHost);
+
+
 
 
 
@@ -228,6 +192,10 @@ double *main(int argc, char *argv[]) {
 	//GPU (that we have just moved to CPU in 4)
 
 
+	for (int i = 0; i < rowsize; i++) {
+
+	}
+
 
 	//**********************************************************//
 
@@ -244,6 +212,11 @@ double *main(int argc, char *argv[]) {
 	//de-allocate memory on the CPU (it is a good practice to do this
 	//even though c++ will de-allocate it automatically) 
 
+	free(h_row);
+	free(h_col);
+	free(h_mvalue);
+	free(h_vec);
+	free(mat2D);
 
 
 	//************************************************************//
@@ -251,5 +224,6 @@ double *main(int argc, char *argv[]) {
 
 
 	//Returns pointer to the resultant SpMV vector.
-	return result;
+	
+	return h_output;
 }
