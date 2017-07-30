@@ -35,7 +35,7 @@ void ErrorHandlMacro_Example()
 }
 
 
-void Array2D(int *row, int *col, double *value, int size) {
+double *Array2D(int *row, int *col, double *value, int size) {
 	double *mat2D;
 	mat2D = (double *) malloc(size * sizeof(double));
 
@@ -43,7 +43,7 @@ void Array2D(int *row, int *col, double *value, int size) {
 		mat2D[row[i]][col[i]] = value[i];
 	}
 
-	return 0;
+	return mat2D;
 }
 
 
@@ -96,7 +96,7 @@ double *main(int argc, char *argv[]) {
 	//******************************************//
 		
 
-	Array2D(h_row, h_col, h_mvalue, matsize);
+	double *h_mat = Array2D(h_row, h_col, h_mvalue, matsize);
 
 
 	//************ 2) Allocate memory on GPU *************//			
@@ -113,7 +113,7 @@ double *main(int argc, char *argv[]) {
 	cudaMalloc((void **)&d_vec, mdoublesize); 
 	cudaMalloc((void **)&d_output, finalsize);
 
-	cudaMemcpy(d_mat, mat2D, mdoublesize, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_mat, h_mat, mdoublesize, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_vec, h_vec, veclen * sizeof(double), cudaMemcpyHostToDevice);
 
 
@@ -192,9 +192,7 @@ double *main(int argc, char *argv[]) {
 	//GPU (that we have just moved to CPU in 4)
 
 
-	for (int i = 0; i < rowsize; i++) {
-
-	}
+	
 
 
 	//**********************************************************//
