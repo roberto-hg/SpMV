@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <math.h>
 
 //Error handling macro, wrap it around cuda function whenever possible
 static void HandleError(cudaError_t err, const char *file, int line) {
@@ -87,8 +87,10 @@ int main(int argc, char *argv[]) {
 
 	//************ 1) Read input files ************//	
 	// this will have to allocate the necessary memory on the CPU side (Done)
+	
 
 	FILE *pToMFile = fopen(argv[1], "r"); //Opens matrix file.
+	
 
 	int matsize;
 	fscanf(pToMFile, "%d", &matsize); //Sets the matrix size.
@@ -112,6 +114,7 @@ int main(int argc, char *argv[]) {
 	fclose(pToMFile);
 
 	FILE *pToVFile = fopen(argv[2], "r"); //Opens vector file.
+	
 
 	int veclen;
 	fscanf(pToVFile, "%d", &veclen); //Sets the vector size.
@@ -202,13 +205,35 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (memcmp(temp, h_output, outputsize))
-		printf("\nOutput GPU SpMV vector is NOT the same as CPU SpMV vector\n\n");
 
-	else
-		printf("\nOutput GPU SpMV vector is the same as CPU SpMV vector\n\n");
+	//AH: this is not the right way to compare between double (or float) since
+	//floating point arithmetic are generally approximated since computer
+	//can not store infinite sqeuence of digits to represent number 
+	//(think of how to represent PI or any irrational number)
+	//also, memcmp compare two block of memory byte by byte so even 
+	//if the numerical value is equal by the size of block differs
+	//it won't return 0. For example, if you change temp to be float array
+	//it will return false. 
+	//The correct way to compare between floating points numeric is below 
+
+	//if (memcmp(temp, h_output, outputsize))
+	//		printf("\nOutput GPU SpMV vector is NOT the same as CPU SpMV vector\n\n");
+	//
+	//else
+	//		printf("\nOutput GPU SpMV vector is the same as CPU SpMV vector\n\n");
+	//
+
+	for (int i = 0; i < rownum; i++){
+		if (fabs(temp[i] - h_output[i])>1E-6){ //0.000001 is called tolerance. It can be tuned up or down but generall 10^-6 is a good value
+			printf("\nOutput GPU SpMV vector is NOT the same as CPU SpMV vector\n\n");			
+			exit(1);
+		}
+	}
+
+	printf("\nOutput GPU SpMV vector is the same as CPU SpMV vector\n\n");
 
 
+	
 	for (int i = 0; i < rownum; i++) {
 		printf("Resultant vector element %d = %lf\n\n", i, h_output[i]);
 	}
